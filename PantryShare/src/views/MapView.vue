@@ -344,7 +344,7 @@ const initializeMap = async () => {
     console.log('Initializing Google Maps...')
     
     const loader = new Loader({
-      apiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || 'AIzaSyCOyoJijb-Ytqjdfa8bItwQ81lGvfGIUGs',
+      apiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY ,
       version: 'weekly',
       libraries: ['places', 'marker']
     })
