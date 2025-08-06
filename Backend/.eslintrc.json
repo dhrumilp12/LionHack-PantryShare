@@ -1,0 +1,78 @@
+{
+  "env": {
+    "es2021": true,
+    "node": true,
+    "jest": true
+  },
+  "extends": [
+    "eslint:recommended",
+    "airbnb-base"
+  ],
+  "parserOptions": {
+    "ecmaVersion": "latest",
+    "sourceType": "module"
+  },
+  "rules": {
+    "no-console": "warn",
+    "no-unused-vars": "error",
+    "no-undef": "error",
+    "semi": ["error", "always"],
+    "quotes": ["error", "single"],
+    "indent": ["error", 2],
+    "comma-dangle": ["error", "never"],
+    "no-trailing-spaces": "error",
+    "eol-last": "error",
+    "object-curly-spacing": ["error", "always"],
+    "array-bracket-spacing": ["error", "never"],
+    "max-len": ["error", { "code": 100, "ignoreComments": true }],
+    "camelcase": "error",
+    "prefer-const": "error",
+    "no-var": "error",
+    "arrow-spacing": "error",
+    "space-before-blocks": "error",
+    "keyword-spacing": "error",
+    "space-infix-ops": "error",
+    "comma-spacing": "error",
+    "brace-style": ["error", "1tbs"],
+    "curly": "error",
+    "eqeqeq": "error",
+    "no-multi-spaces": "error",
+    "no-multiple-empty-lines": ["error", { "max": 1 }],
+    "padded-blocks": ["error", "never"],
+    "space-before-function-paren": ["error", {
+      "anonymous": "always",
+      "named": "never",
+      "asyncArrow": "always"
+    }],
+    "func-call-spacing": "error",
+    "key-spacing": "error",
+    "no-whitespace-before-property": "error",
+    "space-in-parens": "error",
+    "block-spacing": "error",
+    "computed-property-spacing": "error",
+    "func-name-matching": "error",
+    "spaced-comment": "error",
+    "arrow-parens": ["error", "as-needed"],
+    "prefer-arrow-callback": "error",
+    "prefer-template": "error",
+    "template-curly-spacing": "error",
+    "object-shorthand": "error",
+    "prefer-destructuring": ["error", {
+      "array": false,
+      "object": true
+    }],
+    "no-param-reassign": ["error", { "props": false }],
+    "consistent-return": "off",
+    "import/prefer-default-export": "off",
+    "import/no-extraneous-dependencies": ["error", {
+      "devDependencies": ["**/*.test.js", "**/*.spec.js"]
+    }]
+  },
+  "ignorePatterns": [
+    "node_modules/",
+    "dist/",
+    "build/",
+    "coverage/",
+    "logs/"
+  ]
+}
