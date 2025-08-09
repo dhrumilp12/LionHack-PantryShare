@@ -16,6 +16,7 @@ class UserService {
       return {
         success: true,
         user: response.data.user,
+        message: response.message,
       }
     } catch (error) {
       console.error('Get profile error:', error)
@@ -71,13 +72,12 @@ class UserService {
   /**
    * Update user location
    */
-  async updateLocation(location) {
+  async updateLocation(locationData) {
     try {
-      const response = await apiClient.put('/users/location', location)
+      const response = await apiClient.put('/users/location', locationData)
       
       return {
         success: true,
-        location: response.data.location,
         message: response.message,
       }
     } catch (error) {
@@ -95,6 +95,37 @@ class UserService {
         success: false,
         error: 'Failed to update location. Please try again.',
         code: 'LOCATION_UPDATE_ERROR',
+      }
+    }
+  }
+
+  /**
+   * Update user preferences
+   */
+  async updatePreferences(preferences) {
+    try {
+      const response = await apiClient.put('/users/preferences', { preferences })
+      
+      return {
+        success: true,
+        user: response.data.user,
+        message: response.message,
+      }
+    } catch (error) {
+      console.error('Update preferences error:', error)
+      
+      if (error instanceof ApiError) {
+        return {
+          success: false,
+          error: error.message,
+          code: error.code,
+        }
+      }
+
+      return {
+        success: false,
+        error: 'Failed to update preferences. Please try again.',
+        code: 'PREFERENCES_UPDATE_ERROR',
       }
     }
   }
@@ -160,19 +191,34 @@ class UserService {
   }
 
   /**
-   * Upload user avatar
+   * Upload profile image
    */
-  async uploadAvatar(file, onProgress = null) {
+  async uploadProfileImage(file, onProgress = null) {
     try {
-      const response = await apiClient.uploadFile('/upload/avatar', file, onProgress)
+      console.log('UserService: Starting upload for file:', file.name, 'Type:', file.type, 'Size:', file.size)
+      
+      const formData = new FormData()
+      formData.append('image', file)  // Backend expects 'image' field name
+      formData.append('purpose', 'profile')
+      formData.append('quality', '90')
+
+      console.log('UserService: FormData created with "image" field, calling API...')
+      console.log('UserService: FormData contents:')
+      for (let [key, value] of formData.entries()) {
+        console.log(`  ${key}:`, value)
+      }
+      
+      const response = await apiClient.uploadFile('/upload/image', formData, onProgress)
+      
+      console.log('UserService: API response:', response)
       
       return {
         success: true,
-        imageUrl: response.data.imageUrl,
+        imageUrl: response.data.url,
         message: response.message,
       }
     } catch (error) {
-      console.error('Upload avatar error:', error)
+      console.error('Upload profile image error:', error)
       
       if (error instanceof ApiError) {
         return {
@@ -184,8 +230,104 @@ class UserService {
 
       return {
         success: false,
-        error: 'Failed to upload avatar. Please try again.',
-        code: 'AVATAR_UPLOAD_ERROR',
+        error: 'Failed to upload image. Please try again.',
+        code: 'IMAGE_UPLOAD_ERROR',
+      }
+    }
+  }
+
+  /**
+   * Deactivate user account
+   */
+  async deactivateAccount() {
+    try {
+      const response = await apiClient.post('/users/deactivate')
+      
+      return {
+        success: true,
+        message: response.message,
+      }
+    } catch (error) {
+      console.error('Deactivate account error:', error)
+      
+      if (error instanceof ApiError) {
+        return {
+          success: false,
+          error: error.message,
+          code: error.code,
+        }
+      }
+
+      return {
+        success: false,
+        error: 'Failed to deactivate account. Please try again.',
+        code: 'ACCOUNT_DEACTIVATE_ERROR',
+      }
+    }
+  }
+
+  /**
+   * Reactivate user account
+   */
+  async reactivateAccount() {
+    try {
+      const response = await apiClient.post('/users/reactivate')
+      
+      return {
+        success: true,
+        message: response.message,
+      }
+    } catch (error) {
+      console.error('Reactivate account error:', error)
+      
+      if (error instanceof ApiError) {
+        return {
+          success: false,
+          error: error.message,
+          code: error.code,
+        }
+      }
+
+      return {
+        success: false,
+        error: 'Failed to reactivate account. Please try again.',
+        code: 'ACCOUNT_REACTIVATE_ERROR',
+      }
+    }
+  }
+
+  /**
+   * Get nearby volunteers
+   */
+  async getNearbyVolunteers(latitude, longitude, radius = 10) {
+    try {
+      const response = await apiClient.get('/users/nearby/volunteers', {
+        latitude,
+        longitude,
+        radius,
+      })
+      
+      return {
+        success: true,
+        volunteers: response.data.volunteers,
+        searchRadius: response.data.searchRadius,
+        center: response.data.center,
+      }
+    } catch (error) {
+      console.error('Get nearby volunteers error:', error)
+      
+      if (error instanceof ApiError) {
+        return {
+          success: false,
+          error: error.message,
+          code: error.code,
+        }
+      }
+
+      return {
+        success: false,
+        error: 'Failed to find nearby volunteers. Please try again.',
+        code: 'VOLUNTEERS_SEARCH_ERROR',
       }
     }
   }

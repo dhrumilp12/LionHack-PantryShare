@@ -1,13 +1,11 @@
 <template>
   <div class="dashboard-container">
-    <!-- Hero Dashboard Section -->
     <section class="dashboard-hero">
       <div class="hero-bg">
         <div class="floating-orb orb-1"></div>
         <div class="floating-orb orb-2"></div>
         <div class="floating-orb orb-3"></div>
       </div>
-      
       <div class="dashboard-header">
         <div class="welcome-content">
           <div class="welcome-badge">
@@ -147,9 +145,18 @@
             <div class="card-header">
               <div class="header-content">
                 <h3 class="card-title">Recent Listings Near You</h3>
-                <div class="live-indicator">
-                  <div class="pulse-dot"></div>
-                  <span>Live Updates</span>
+                <div style="display:flex; align-items:center; gap:12px;">
+                  <div class="live-indicator">
+                    <span class="pulse-dot"></span>
+                    Live Updates
+                  </div>
+                  <router-link
+                    to="/listings"
+                    class="action-btn secondary"
+                    title="View all listings"
+                  >
+                    View all
+                  </router-link>
                 </div>
               </div>
             </div>
@@ -180,7 +187,7 @@
                   @click="$router.push(`/listings/${listing.id}`)"
                 >
                   <div class="listing-image">
-                    <img :src="listing.imageUrl || '/api/placeholder/80/80'" :alt="listing.title" />
+                    <img :src="listing.imageUrls?.[0] || '/api/placeholder/80/80'" :alt="listing.title" />
                     <div class="listing-overlay">
                       <svg viewBox="0 0 24 24" class="view-icon">
                         <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
@@ -200,6 +207,15 @@
                   </div>
                 </div>
               </div>
+              <div class="cta-row">
+                <router-link
+                  to="/listings"
+                  class="action-btn primary"
+                  title="Browse all listings"
+                >
+                  Browse all listings
+                </router-link>
+              </div>
             </div>
           </div>
 
@@ -214,7 +230,15 @@
                 <div class="profile-avatar">
                   <div class="avatar-ring"></div>
                   <div class="avatar-image">
-                    {{ (authStore.user?.firstName?.[0] || 'U').toUpperCase() }}
+                    <img
+                      v-if="profileImageUrl"
+                      :src="profileImageUrl"
+                      alt="Profile"
+                      class="avatar-img"
+                    />
+                    <span v-else>
+                      {{ userInitial }}
+                    </span>
                   </div>
                 </div>
                 <div class="profile-info">
@@ -265,21 +289,6 @@
                   </svg>
                 </button>
 
-                <button class="action-item" @click="$router.push('/settings')">
-                  <div class="action-icon settings">
-                    <svg viewBox="0 0 24 24">
-                      <circle cx="12" cy="12" r="3"/>
-                      <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/>
-                    </svg>
-                  </div>
-                  <div class="action-content">
-                    <span class="action-name">Settings</span>
-                    <span class="action-desc">Manage preferences</span>
-                  </div>
-                  <svg viewBox="0 0 24 24" class="action-arrow">
-                    <path d="M5 12h14m-7-7l7 7-7 7"/>
-                  </svg>
-                </button>
               </div>
             </div>
 
@@ -332,8 +341,26 @@ const recentListings = computed(() => {
   return listingsStore.listings.slice(0, 6)
 })
 
+// Profile avatar helpers
+const profileImageUrl = computed(() => authStore.user?.profileImage || authStore.user?.avatarUrl || '')
+const userInitial = computed(() => {
+  const first = authStore.user?.firstName
+  const last = authStore.user?.lastName
+  const name = (first && last) ? `${first} ${last}` : (first || authStore.user?.name || 'U')
+  return (name?.charAt(0) || 'U').toUpperCase()
+})
+
 const formatDate = (date) => {
-  return new Date(date).toLocaleDateString('en-US', {
+  if (!date) return ''
+  // Support Firestore Timestamp objects and ISO/date strings
+  let d
+  if (date && typeof date === 'object' && date._seconds) {
+    d = new Date(date._seconds * 1000 + (date._nanoseconds || 0) / 1e6)
+  } else {
+    d = new Date(date)
+  }
+  if (isNaN(d.getTime())) return ''
+  return d.toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',
     hour: '2-digit',
@@ -361,6 +388,7 @@ onMounted(async () => {
 <style scoped>
 /* Global Styles */
 .dashboard-container {
+  margin-top: 40px;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   line-height: 1.6;
   color: #1a1a1a;
@@ -745,6 +773,11 @@ onMounted(async () => {
   padding: 0 32px 32px;
 }
 
+.cta-row {
+  text-align: center;
+  margin-top: 16px;
+}
+
 /* Empty State */
 .empty-state {
   text-align: center;
@@ -898,6 +931,7 @@ onMounted(async () => {
   margin-bottom: 12px;
   line-height: 1.4;
   display: -webkit-box;
+  line-clamp: 2;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
@@ -1003,6 +1037,13 @@ onMounted(async () => {
   font-weight: 800;
   color: #667eea;
   z-index: 2;
+}
+
+.avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
 }
 
 .profile-name {

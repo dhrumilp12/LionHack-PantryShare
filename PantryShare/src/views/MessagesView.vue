@@ -238,7 +238,7 @@ const mockConversations = [
   {
     id: '1',
     name: 'Sarah Chen',
-    avatar: 'https://images.unsplash.com/photo-1494790108755-2616b612b786?w=150',
+    avatar: 'https://wallpapercave.com/wp/wp8907719.jpg',
     type: 'Food Pickup',
     status: 'Active',
     unreadCount: 2,
@@ -399,6 +399,7 @@ onMounted(() => {
 
 <style scoped>
 .messages-container {
+  margin-top: 60px;
   min-height: 100vh;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   position: relative;
@@ -542,7 +543,7 @@ onMounted(() => {
   display: grid;
   grid-template-columns: 400px 1fr;
   gap: 32px;
-  height: calc(100vh - 200px);
+  height: calc(90vh - 200px);
 }
 
 /* Conversations Panel */

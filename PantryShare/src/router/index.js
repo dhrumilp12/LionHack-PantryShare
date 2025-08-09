@@ -70,6 +70,24 @@ const router = createRouter({
       path: '/forgot-password',
       redirect: '/auth/forgot-password'
     },
+    {
+      path: '/auth/reset-password/:token',
+      name: 'reset-password',
+      component: () => import('@/views/auth/ResetPasswordView.vue'),
+      meta: {
+        title: 'Reset Password - PantryShare',
+        requiresGuest: true
+      }
+    },
+    {
+      path: '/auth/reset-password',
+      name: 'reset-password-query',
+      component: () => import('@/views/auth/ResetPasswordView.vue'),
+      meta: {
+        title: 'Reset Password - PantryShare',
+        requiresGuest: true
+      }
+    },
     
     // Protected Routes
     {

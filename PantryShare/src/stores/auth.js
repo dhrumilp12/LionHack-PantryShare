@@ -190,16 +190,25 @@ export const useAuthStore = defineStore('auth', () => {
     error.value = null
 
     try {
-      // This would typically make an API call to update profile
-      // For now, we'll implement a placeholder that updates local state
+      // Import user service here to avoid circular dependency
+      const { default: userService } = await import('@/services/user.js')
       
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 500))
+      const result = await userService.updateProfile(updates)
       
-      // Update local user state
-      user.value = { ...user.value, ...updates }
-      
-      return { success: true }
+      if (result.success) {
+        // Update local user state
+        user.value = { ...user.value, ...result.user }
+        
+        return { success: true, user: result.user }
+      } else {
+        error.value = result.error
+        return { 
+          success: false, 
+          error: result.error,
+          code: result.code,
+          details: result.details
+        }
+      }
     } catch (err) {
       const errorMessage = 'Failed to update profile. Please try again.'
       error.value = errorMessage

@@ -1,4 +1,5 @@
 import express from 'express';
+import bcrypt from 'bcrypt';
 import { logger } from '../config/logger.js';
 import { MESSAGES } from '../config/constants.js';
 import { UserService } from '../services/userService.js';
@@ -62,6 +63,66 @@ router.put('/profile', authenticateToken, validateUpdateProfile, asyncHandler(as
     data: {
       user: userResponse
     }
+  });
+}));
+
+/**
+ * @route   PUT /api/users/change-password
+ * @desc    Change user password
+ * @access  Private
+ */
+router.put('/change-password', authenticateToken, asyncHandler(async (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+  const userId = req.userId;
+
+  if (!currentPassword || !newPassword) {
+    return res.status(400).json({
+      success: false,
+      message: 'Current password and new password are required',
+      error: 'MISSING_PASSWORDS'
+    });
+  }
+
+  if (newPassword.length < 8) {
+    return res.status(400).json({
+      success: false,
+      message: 'New password must be at least 8 characters long',
+      error: 'PASSWORD_TOO_SHORT'
+    });
+  }
+
+  // Get current user
+  const user = await userService.getUserById(userId);
+  if (!user) {
+    return res.status(404).json({
+      success: false,
+      message: MESSAGES.ERROR.USER_NOT_FOUND,
+      error: 'USER_NOT_FOUND'
+    });
+  }
+
+  // Verify current password
+  const isCurrentPasswordValid = await bcrypt.compare(currentPassword, user.password);
+  if (!isCurrentPasswordValid) {
+    return res.status(400).json({
+      success: false,
+      message: 'Current password is incorrect',
+      error: 'INVALID_CURRENT_PASSWORD'
+    });
+  }
+
+  // Hash new password
+  const saltRounds = 12;
+  const hashedNewPassword = await bcrypt.hash(newPassword, saltRounds);
+
+  // Update password
+  await userService.updateUser(userId, { password: hashedNewPassword });
+
+  logger.info(`Password changed for user: ${userId}`);
+
+  res.json({
+    success: true,
+    message: 'Password changed successfully'
   });
 }));
 

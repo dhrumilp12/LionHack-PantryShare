@@ -246,7 +246,10 @@ export class ListingService {
 
         // Check if listing has expired
         const now = new Date();
-        const pickupEnd = new Date(listing.pickupWindow.end.toDate());
+        const endVal = listing?.pickupWindow?.end;
+        const pickupEnd = endVal && typeof endVal?.toDate === 'function'
+          ? endVal.toDate()
+          : new Date(endVal);
         if (pickupEnd < now) {
           throw new Error('Pickup window has expired');
         }
@@ -445,7 +448,10 @@ export class ListingService {
 
       snapshot.forEach(doc => {
         const listing = doc.data();
-        const expiryDate = listing.expiryDate.toDate();
+        const expVal = listing.expiryDate;
+        const expiryDate = expVal && typeof expVal?.toDate === 'function'
+          ? expVal.toDate()
+          : new Date(expVal);
         
         if (expiryDate <= cutoffTime) {
           expiringListings.push({
@@ -531,7 +537,10 @@ export class ListingService {
 
       snapshot.forEach(doc => {
         const listing = doc.data();
-        const expiryDate = listing.expiryDate.toDate();
+        const expVal = listing.expiryDate;
+        const expiryDate = expVal && typeof expVal?.toDate === 'function'
+          ? expVal.toDate()
+          : new Date(expVal);
         
         if (expiryDate <= now) {
           batch.update(doc.ref, {

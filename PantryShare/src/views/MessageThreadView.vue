@@ -219,7 +219,7 @@ const mockConversations = {
   '1': {
     id: '1',
     name: 'Sarah Chen',
-    avatar: 'https://images.unsplash.com/photo-1494790108755-2616b612b786?w=150',
+    avatar: 'https://wallpapercave.com/wp/wp8907719.jpg',
     type: 'Food Pickup',
     status: 'Active',
     subject: 'Sandwich Pickup Arrangement',
@@ -228,7 +228,7 @@ const mockConversations = {
       id: '1',
       title: 'Fresh Sandwiches from School Cafeteria',
       description: '20 assorted sandwiches from today\'s lunch service',
-      image: 'https://images.unsplash.com/photo-1553909489-cd47e0ef937f?w=150',
+      image: 'https://wallpapercave.com/wp/wp8907719.jpg',
       location: 'Green Valley Elementary',
       status: 'available'
     }

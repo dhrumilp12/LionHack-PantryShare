@@ -60,13 +60,12 @@
             >
               <div class="avatar-container">
                 <div class="avatar">
-                  <span class="avatar-text">
-                    {{ user?.name?.charAt(0)?.toUpperCase() || 'U' }}
-                  </span>
+                  <img v-if="profileImageUrl" :src="profileImageUrl" alt="Profile" class="avatar-image" />
+                  <span v-else class="avatar-text">{{ userInitial }}</span>
                   <div class="avatar-ring"></div>
                 </div>
                 <div class="user-info">
-                  <span class="user-name">{{ user?.name || 'User' }}</span>
+                  <span class="user-name">{{ displayName }}</span>
                   <span class="user-role">{{ user?.role || 'Volunteer' }}</span>
                 </div>
               </div>
@@ -85,10 +84,11 @@
               <div v-if="showUserMenu" class="user-dropdown">
                 <div class="dropdown-header">
                   <div class="dropdown-avatar">
-                    <span>{{ user?.name?.charAt(0)?.toUpperCase() || 'U' }}</span>
+                    <img v-if="profileImageUrl" :src="profileImageUrl" alt="Profile" class="dropdown-avatar-image" />
+                    <span v-else>{{ userInitial }}</span>
                   </div>
                   <div class="dropdown-user-info">
-                    <div class="dropdown-name">{{ user?.name || 'User' }}</div>
+                    <div class="dropdown-name">{{ displayName }}</div>
                     <div class="dropdown-email">{{ user?.email || 'user@example.com' }}</div>
                   </div>
                 </div>
@@ -111,14 +111,6 @@
                   >
                     <ChartBarIcon class="dropdown-icon" />
                     <span>Dashboard</span>
-                  </router-link>
-                  <router-link
-                    to="/settings"
-                    class="dropdown-item"
-                    @click="closeUserMenu"
-                  >
-                    <CogIcon class="dropdown-icon" />
-                    <span>Settings</span>
                   </router-link>
                 </div>
                 
@@ -252,6 +244,18 @@ const userMenuRef = ref(null)
 const isAuthenticated = computed(() => authStore.isAuthenticated)
 const user = computed(() => authStore.user)
 const unreadCount = computed(() => notificationStore.notifications.length)
+
+// Derived display fields
+const displayName = computed(() => {
+  const u = user.value
+  if (!u) return 'User'
+  // Prefer first/last if present; else name; fallback "User"
+  const full = `${u.firstName || ''} ${u.lastName || ''}`.trim()
+  return full || u.name || 'User'
+})
+
+const profileImageUrl = computed(() => user.value?.profileImage || user.value?.avatarUrl || '')
+const userInitial = computed(() => (displayName.value?.charAt(0) || 'U').toUpperCase())
 
 // Navigation items
 const navigationItems = computed(() => {
@@ -581,6 +585,13 @@ onUnmounted(() => {
   justify-content: center;
 }
 
+.avatar-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
 .avatar-text {
   color: white;
   font-weight: 700;
@@ -669,6 +680,13 @@ onUnmounted(() => {
   justify-content: center;
   font-weight: 700;
   font-size: 18px;
+}
+
+.dropdown-avatar-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
 }
 
 .dropdown-user-info {

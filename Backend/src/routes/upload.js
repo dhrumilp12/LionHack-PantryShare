@@ -34,7 +34,31 @@ const upload = multer({
  */
 router.post('/image', 
   authenticateToken, 
+  (req, res, next) => {
+    // Debug middleware to log request details
+    console.log('=== Upload Request Debug ===')
+    console.log('Headers:', req.headers)
+    console.log('Content-Type:', req.headers['content-type'])
+    console.log('Body keys:', Object.keys(req.body))
+    console.log('Files present:', !!req.files)
+    console.log('File present:', !!req.file)
+    console.log('Raw body type:', typeof req.body)
+    next()
+  },
   upload.single('image'), 
+  (req, res, next) => {
+    // Debug middleware after multer
+    console.log('=== After Multer Debug ===')
+    console.log('req.file:', !!req.file ? 'YES' : 'NO')
+    console.log('req.file details:', req.file ? {
+      fieldname: req.file.fieldname,
+      originalname: req.file.originalname,
+      mimetype: req.file.mimetype,
+      size: req.file.size
+    } : 'NONE')
+    console.log('req.body:', req.body)
+    next()
+  },
   validateFileUpload,
   asyncHandler(async (req, res) => {
     if (!req.file) {
@@ -140,8 +164,110 @@ router.post('/image',
 );
 
 /**
+ * @route   POST /api/upload/images
+ * @desc    Upload multiple images (frontend compatibility)
+ * @access  Private
+ */
+router.post('/images',
+  authenticateToken,
+  upload.array('files', 5), // Frontend sends 'files' field
+  validateFileUpload,
+  asyncHandler(async (req, res) => {
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'No image files provided',
+        error: 'MISSING_FILES'
+      });
+    }
+
+    const { purpose = 'listing', quality = 80 } = req.body;
+    const userId = req.userId;
+
+    const uploadPromises = req.files.map(async (file, index) => {
+      try {
+        // Generate unique filename
+        const fileName = `${purpose}/${userId}/${uuidv4()}.jpg`;
+
+        // Process image
+        const processedBuffer = await sharp(file.buffer)
+          .jpeg({ quality: parseInt(quality) })
+          .rotate()
+          .resize(800, 600, {
+            fit: 'inside',
+            withoutEnlargement: true
+          })
+          .toBuffer();
+
+        // Upload to Firebase Storage
+        const bucket = getStorage().bucket();
+        const storageFile = bucket.file(fileName);
+
+        const stream = storageFile.createWriteStream({
+          metadata: {
+            contentType: 'image/jpeg',
+            metadata: {
+              uploadedBy: userId,
+              purpose,
+              originalName: file.originalname,
+              uploadedAt: new Date().toISOString(),
+              index
+            }
+          }
+        });
+
+        await new Promise((resolve, reject) => {
+          stream.on('error', reject);
+          stream.on('finish', resolve);
+          stream.end(processedBuffer);
+        });
+
+        await storageFile.makePublic();
+
+        const publicUrl = `https://storage.googleapis.com/${bucket.name}/${fileName}`;
+
+        return {
+          url: publicUrl,
+          fileName,
+          originalName: file.originalname,
+          size: processedBuffer.length,
+          index
+        };
+
+      } catch (error) {
+        logger.error(`Error uploading file ${file.originalname}:`, error);
+        return {
+          originalName: file.originalname,
+          error: error.message,
+          index
+        };
+      }
+    });
+
+    const results = await Promise.all(uploadPromises);
+
+    const successfulUploads = results.filter(result => !result.error);
+    const failedUploads = results.filter(result => result.error);
+
+    logger.info(`Image upload completed: ${successfulUploads.length} successful, ${failedUploads.length} failed by user ${userId}`);
+
+    res.json({
+      success: true,
+      message: `${successfulUploads.length} images uploaded successfully`,
+      data: {
+        urls: successfulUploads.map(upload => upload.url), // Return URLs array for frontend
+        successful: successfulUploads,
+        failed: failedUploads,
+        totalUploaded: successfulUploads.length,
+        totalFailed: failedUploads.length
+      }
+    });
+  })
+);
+
+/**
  * @route   POST /api/upload/multiple
- * @desc    Upload multiple images
+ * @desc    Upload multiple images (legacy endpoint)
  * @access  Private
  */
 router.post('/multiple',

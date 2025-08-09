@@ -5,11 +5,15 @@ import { getAuth } from '../config/firebase.js';
 import { logger } from '../config/logger.js';
 import { MESSAGES } from '../config/constants.js';
 import { UserService } from '../services/userService.js';
+import EmailService from '../services/emailService.js';
+import PasswordResetService from '../services/passwordResetService.js';
 import { validateRegister, validateLogin } from '../middleware/validation.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 
 const router = express.Router();
 const userService = new UserService();
+const emailService = new EmailService();
+const passwordResetService = new PasswordResetService();
 
 /**
  * @route   POST /api/auth/register
@@ -73,6 +77,11 @@ router.post('/register', validateRegister, asyncHandler(async (req, res) => {
   const { password: _, ...userResponse } = newUser;
 
   logger.info(`New user registered: ${newUser.id} (${email})`);
+
+  // Send welcome email (don't wait for it)
+  emailService.sendWelcomeEmail(email, firstName).catch(error => {
+    logger.error('Failed to send welcome email:', error);
+  });
 
   res.status(201).json({
     success: true,
@@ -311,7 +320,17 @@ router.post('/forgot-password', asyncHandler(async (req, res) => {
     });
   }
 
-  const user = await userService.getUserByEmail(email);
+  // Validate email format
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    return res.status(400).json({
+      success: false,
+      message: 'Please provide a valid email address',
+      error: 'INVALID_EMAIL'
+    });
+  }
+
+  const user = await userService.getUserByEmail(email.toLowerCase());
   
   // Always return success to prevent email enumeration
   res.json({
@@ -319,13 +338,85 @@ router.post('/forgot-password', asyncHandler(async (req, res) => {
     message: 'If an account with that email exists, a password reset link has been sent'
   });
 
-  if (user) {
-    // TODO: Implement password reset email functionality
-    // This would typically involve:
-    // 1. Generate a secure reset token
-    // 2. Store it in the database with expiration
-    // 3. Send email with reset link
-    logger.info(`Password reset requested for user: ${user.id} (${email})`);
+  if (user && user.isActive) {
+    try {
+      // Revoke any existing reset tokens for this user
+      await passwordResetService.revokeUserTokens(user.id);
+      
+      // Create new reset token
+      const resetResult = await passwordResetService.createResetToken(user.id, email.toLowerCase());
+      
+      if (resetResult.success) {
+        // Send password reset email
+        await emailService.sendPasswordResetEmail(
+          email.toLowerCase(),
+          user.firstName,
+          resetResult.token
+        );
+        
+        logger.info(`Password reset email sent to user: ${user.id} (${email})`);
+      }
+    } catch (error) {
+      logger.error('Error processing password reset request:', error);
+      // Don't expose the error to the client
+    }
+  } else {
+    // Log attempted reset for non-existent or inactive user
+    logger.warn(`Password reset attempted for non-existent/inactive user: ${email}`);
+  }
+}));
+
+/**
+ * @route   GET /api/auth/validate-reset-token/:token
+ * @desc    Validate password reset token
+ * @access  Public
+ */
+router.get('/validate-reset-token/:token', asyncHandler(async (req, res) => {
+  const { token } = req.params;
+
+  // Prevent caching of token validation
+  res.set({
+    'Cache-Control': 'no-cache, no-store, must-revalidate',
+    'Pragma': 'no-cache',
+    'Expires': '0'
+  });
+
+  if (!token) {
+    return res.status(400).json({
+      success: false,
+      message: 'Reset token is required',
+      error: 'MISSING_TOKEN'
+    });
+  }
+
+  try {
+    const tokenValidation = await passwordResetService.validateResetToken(token);
+    
+    if (!tokenValidation.success) {
+      return res.status(400).json({
+        success: false,
+        message: tokenValidation.error,
+        error: 'INVALID_TOKEN'
+      });
+    }
+
+    // Return basic info without sensitive data
+    res.json({
+      success: true,
+      message: 'Token is valid',
+      data: {
+        email: tokenValidation.data.email,
+        expiresAt: tokenValidation.data.expiresAt
+      }
+    });
+  } catch (error) {
+    logger.error('Error validating reset token:', error);
+    
+    res.status(500).json({
+      success: false,
+      message: 'An error occurred while validating the token',
+      error: 'VALIDATION_FAILED'
+    });
   }
 }));
 
@@ -337,6 +428,13 @@ router.post('/forgot-password', asyncHandler(async (req, res) => {
 router.post('/reset-password', asyncHandler(async (req, res) => {
   const { token, newPassword } = req.body;
 
+  // Prevent caching
+  res.set({
+    'Cache-Control': 'no-cache, no-store, must-revalidate',
+    'Pragma': 'no-cache',
+    'Expires': '0'
+  });
+
   if (!token || !newPassword) {
     return res.status(400).json({
       success: false,
@@ -345,13 +443,67 @@ router.post('/reset-password', asyncHandler(async (req, res) => {
     });
   }
 
-  // TODO: Implement password reset token verification and password update
-  // This is a placeholder implementation
-  
-  res.json({
-    success: true,
-    message: 'Password reset successful'
-  });
+  // Validate password strength
+  if (newPassword.length < 8) {
+    return res.status(400).json({
+      success: false,
+      message: 'Password must be at least 8 characters long',
+      error: 'WEAK_PASSWORD'
+    });
+  }
+
+  try {
+    // Validate reset token
+    const tokenValidation = await passwordResetService.validateResetToken(token);
+    
+    if (!tokenValidation.success) {
+      return res.status(400).json({
+        success: false,
+        message: tokenValidation.error,
+        error: 'INVALID_TOKEN'
+      });
+    }
+
+    const { userId, email } = tokenValidation.data;
+    
+    // Get user to ensure they still exist and are active
+    const user = await userService.getUserById(userId);
+    if (!user || !user.isActive) {
+      return res.status(400).json({
+        success: false,
+        message: 'User account not found or inactive',
+        error: 'USER_NOT_FOUND'
+      });
+    }
+
+    // Hash new password
+    const saltRounds = 12;
+    const hashedPassword = await bcrypt.hash(newPassword, saltRounds);
+
+    // Update user password
+    await userService.updateUser(userId, { password: hashedPassword });
+
+    // Mark token as used
+    await passwordResetService.markTokenAsUsed(tokenValidation.data.id);
+
+    // Revoke any other active reset tokens for this user
+    await passwordResetService.revokeUserTokens(userId);
+
+    logger.info(`Password successfully reset for user: ${userId} (${email})`);
+
+    res.json({
+      success: true,
+      message: 'Password reset successful. You can now login with your new password.'
+    });
+  } catch (error) {
+    logger.error('Error resetting password:', error);
+    
+    res.status(500).json({
+      success: false,
+      message: 'An error occurred while resetting your password. Please try again.',
+      error: 'RESET_FAILED'
+    });
+  }
 }));
 
 export default router;

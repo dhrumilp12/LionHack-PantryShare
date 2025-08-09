@@ -178,6 +178,21 @@ export const validateCreateListing = [
     .isFloat({ min: -180, max: 180 })
     .withMessage('Valid longitude is required'),
   
+  body('imageUrls')
+    .optional()
+    .isArray()
+    .withMessage('Image URLs must be an array')
+    .custom((value) => {
+      if (value && value.length > 0) {
+        for (const url of value) {
+          if (typeof url !== 'string' || !url.startsWith('http')) {
+            throw new Error('All image URLs must be valid HTTP URLs');
+          }
+        }
+      }
+      return true;
+    }),
+  
   handleValidationErrors
 ];
 
@@ -201,6 +216,21 @@ export const validateUpdateListing = [
     .optional()
     .isFloat({ min: 0.1 })
     .withMessage('Quantity must be greater than 0'),
+  
+  body('imageUrls')
+    .optional()
+    .isArray()
+    .withMessage('Image URLs must be an array')
+    .custom((value) => {
+      if (value && value.length > 0) {
+        for (const url of value) {
+          if (typeof url !== 'string' || !url.startsWith('http')) {
+            throw new Error('All image URLs must be valid HTTP URLs');
+          }
+        }
+      }
+      return true;
+    }),
   
   handleValidationErrors
 ];

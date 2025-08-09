@@ -103,73 +103,11 @@
           </div>
           
           <div class="nav-column">
-            <h3 class="nav-title">Community</h3>
-            <ul class="nav-list">
-              <li>
-                <router-link to="/partners" class="nav-link">
-                  <span>Partners</span>
-                  <svg viewBox="0 0 24 24" class="nav-arrow">
-                    <path d="M7 17l9.2-9.2M17 17V7H7"/>
-                  </svg>
-                </router-link>
-              </li>
-              <li>
-                <router-link to="/blog" class="nav-link">
-                  <span>Blog</span>
-                  <svg viewBox="0 0 24 24" class="nav-arrow">
-                    <path d="M7 17l9.2-9.2M17 17V7H7"/>
-                  </svg>
-                </router-link>
-              </li>
-              <li>
-                <router-link to="/events" class="nav-link">
-                  <span>Events</span>
-                  <svg viewBox="0 0 24 24" class="nav-arrow">
-                    <path d="M7 17l9.2-9.2M17 17V7H7"/>
-                  </svg>
-                </router-link>
-              </li>
-              <li>
-                <router-link to="/newsletter" class="nav-link">
-                  <span>Newsletter</span>
-                  <svg viewBox="0 0 24 24" class="nav-arrow">
-                    <path d="M7 17l9.2-9.2M17 17V7H7"/>
-                  </svg>
-                </router-link>
-              </li>
-            </ul>
-          </div>
-          
-          <div class="nav-column">
             <h3 class="nav-title">Support</h3>
             <ul class="nav-list">
               <li>
                 <router-link to="/contact" class="nav-link">
                   <span>Contact us</span>
-                  <svg viewBox="0 0 24 24" class="nav-arrow">
-                    <path d="M7 17l9.2-9.2M17 17V7H7"/>
-                  </svg>
-                </router-link>
-              </li>
-              <li>
-                <router-link to="/help" class="nav-link">
-                  <span>Help center</span>
-                  <svg viewBox="0 0 24 24" class="nav-arrow">
-                    <path d="M7 17l9.2-9.2M17 17V7H7"/>
-                  </svg>
-                </router-link>
-              </li>
-              <li>
-                <router-link to="/privacy" class="nav-link">
-                  <span>Privacy</span>
-                  <svg viewBox="0 0 24 24" class="nav-arrow">
-                    <path d="M7 17l9.2-9.2M17 17V7H7"/>
-                  </svg>
-                </router-link>
-              </li>
-              <li>
-                <router-link to="/terms" class="nav-link">
-                  <span>Terms</span>
                   <svg viewBox="0 0 24 24" class="nav-arrow">
                     <path d="M7 17l9.2-9.2M17 17V7H7"/>
                   </svg>
@@ -574,7 +512,7 @@ const subscribeNewsletter = () => {
   text-decoration: none;
   font-size: 15px;
   transition: all 0.3s ease;
-  group: ;
+  
 }
 
 .nav-link:hover {

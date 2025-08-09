@@ -3,8 +3,8 @@
     <!-- Image -->
     <div class="relative h-48 bg-gray-200 overflow-hidden">
       <img
-        v-if="listing.imageUrl"
-        :src="listing.imageUrl"
+        v-if="listing.imageUrls?.[0]"
+        :src="listing.imageUrls[0]"
         :alt="listing.title"
         class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
       />

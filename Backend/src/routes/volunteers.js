@@ -182,10 +182,11 @@ router.post('/match', authenticateToken, asyncHandler(async (req, res) => {
 router.get('/opportunities', authenticateToken, asyncHandler(async (req, res) => {
   const { latitude, longitude, radius = 15, limit = 20 } = req.query;
   const userId = req.userId;
+  const DEMO_MODE = String(process.env.DEMO_MODE || '').toLowerCase() === 'true'
 
-  // Check if user is a volunteer
+  // Check if user is a volunteer (skip in demo mode)
   const user = await userService.getUserById(userId);
-  if (user.role !== 'volunteer') {
+  if (!DEMO_MODE && user.role !== 'volunteer') {
     return res.status(403).json({
       success: false,
       message: 'This endpoint is only available to volunteers',
@@ -210,8 +211,10 @@ router.get('/opportunities', authenticateToken, asyncHandler(async (req, res) =>
 
   const result = await listingService.getListings(filters, options);
 
-  // Filter out user's own listings
-  const opportunities = result.listings.filter(listing => listing.ownerId !== userId);
+  // Filter out user's own listings (skip in demo mode)
+  const opportunities = DEMO_MODE
+    ? result.listings
+    : result.listings.filter(listing => listing.ownerId !== userId);
 
   res.json({
     success: true,

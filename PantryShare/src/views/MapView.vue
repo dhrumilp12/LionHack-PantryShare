@@ -170,14 +170,94 @@
             </router-link>
           </div>
           
-          <!-- Listings Grid -->
+          <!-- Listings Grid (same design as ListingsView.vue) -->
           <div v-else class="listings-grid">
-            <ListingCard
+            <div
               v-for="listing in visibleListings"
               :key="listing.id"
-              :listing="listing"
-              :distance="getDistance(listing)"
-            />
+              class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow cursor-pointer group"
+              @click="viewDetails(listing)"
+            >
+              <!-- Image -->
+              <div class="relative">
+                <img
+                  :src="listing.imageUrls?.[0] || 'https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=400&h=300&fit=crop'"
+                  :alt="listing.title"
+                  class="w-full h-40 sm:h-48 object-cover group-hover:scale-105 transition-transform duration-200"
+                />
+                <!-- Status Badge -->
+                <div class="absolute top-3 right-3">
+                  <span :class="`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(listing.status)}`">
+                    {{ getStatusLabel(listing.status) }}
+                  </span>
+                </div>
+                <!-- Distance Badge -->
+                <div v-if="getDistance(listing)" class="absolute top-3 left-3">
+                  <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-black/60 text-white">
+                    {{ getDistance(listing) }} km
+                  </span>
+                </div>
+              </div>
+
+              <!-- Content -->
+              <div class="p-6">
+                <!-- Category and Quantity -->
+                <div class="flex items-center justify-between mb-2">
+                  <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                    {{ formatCategory(listing.category) }}
+                  </span>
+                  <span class="text-sm text-gray-500">{{ listing.quantity }} {{ listing.unit }}</span>
+                </div>
+
+                <!-- Title -->
+                <h3 class="text-lg font-semibold text-gray-900 mb-2 line-clamp-1 group-hover:text-green-600 transition-colors">
+                  {{ listing.title }}
+                </h3>
+
+                <!-- Description -->
+                <p class="text-gray-600 text-sm mb-4 line-clamp-2">{{ listing.description }}</p>
+                
+                <!-- Details -->
+                <div class="space-y-2">
+                  <!-- Location -->
+                  <div class="flex items-center text-sm text-gray-500">
+                    <svg class="h-4 w-4 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    <span class="truncate">{{ listing.address || listing.location }}</span>
+                  </div>
+
+                  <!-- Expiry Date -->
+                  <div class="flex items-center text-sm">
+                    <svg class="h-4 w-4 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span :class="isExpiringSoon(listing.expiryDate) ? 'text-red-600 font-medium' : 'text-gray-500'">
+                      {{ formatExpiryDate(listing.expiryDate) }}
+                    </span>
+                  </div>
+                </div>
+
+                <!-- Action Button -->
+                <div class="mt-4 pt-4 border-t border-gray-100">
+                  <button
+                    v-if="(listing.status === 'available' || listing.status === 'Available')"
+                    @click.stop="viewDetails(listing)"
+                    class="w-full bg-green-600 text-white py-2 px-4 rounded-lg text-sm font-medium hover:bg-green-700 transition-colors"
+                  >
+                    View Details
+                  </button>
+                  <button
+                    v-else
+                    disabled
+                    class="w-full bg-gray-100 text-gray-500 py-2 px-4 rounded-lg text-sm font-medium cursor-not-allowed"
+                  >
+                    {{ getStatusLabel(listing.status) }}
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
           
           <!-- Load More -->
@@ -245,6 +325,7 @@
 
 <script setup>
 import { ref, computed, onMounted, reactive, nextTick, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useListingsStore } from '@/stores/listings'
 import { useNotificationStore } from '@/stores/notifications'
@@ -255,11 +336,15 @@ import {
   ListBulletIcon,
   PlusIcon,
 } from '@heroicons/vue/24/outline'
-import ListingCard from '@/components/listings/ListingCard.vue'
+import { FOOD_CATEGORY_LABELS, LISTING_STATUS_LABELS, LISTING_STATUS_COLORS } from '@/utils/constants'
 
+const router = useRouter()
 const authStore = useAuthStore()
 const listingsStore = useListingsStore()
 const notificationStore = useNotificationStore()
+
+// Feature flag: use AdvancedMarkerElement (requires valid mapId and marker library)
+const USE_ADVANCED_MARKERS = false
 
 // Map refs and state
 const mapContainer = ref(null)
@@ -276,7 +361,7 @@ const page = ref(1)
 const itemsPerPage = 12
 
 const filters = reactive({
-  status: 'Available',
+  status: '', // Empty means show all
   distance: 10,
   category: '',
 })
@@ -287,19 +372,28 @@ const loading = computed(() => listingsStore.loading)
 const allListings = computed(() => listingsStore.listings)
 
 const visibleListings = computed(() => {
+  console.log('=== Filter Debug ===')
+  console.log('Current filter status:', filters.status)
+  console.log('All listings:', allListings.value.map(l => ({ id: l.id, title: l.title, status: l.status })))
+  
   const filtered = allListings.value.filter(listing => {
-    // Status filter
-    if (filters.status && listing.status !== filters.status) {
-      return false
+    // Status filter (case-insensitive)
+    if (filters.status && filters.status !== '' && filters.status !== 'All Status') {
+      const listingStatus = listing.status?.toLowerCase()
+      const filterStatus = filters.status.toLowerCase()
+      console.log(`Comparing listing status: "${listingStatus}" with filter: "${filterStatus}"`)
+      if (listingStatus !== filterStatus) {
+        return false
+      }
     }
     
     // Distance filter (if user location is available)
-    if (userLocation.value && listing.location) {
+    if (userLocation.value && listing.coordinates) {
       const distance = calculateDistance(
         userLocation.value.latitude,
         userLocation.value.longitude,
-        listing.location.lat,
-        listing.location.lng
+        listing.coordinates.lat,
+        listing.coordinates.lng
       )
       if (distance > filters.distance) {
         return false
@@ -308,6 +402,8 @@ const visibleListings = computed(() => {
     
     return true
   })
+  
+  console.log('Filtered listings:', filtered.map(l => ({ id: l.id, title: l.title, status: l.status })))
   
   // Pagination for list view
   return filtered.slice(0, page.value * itemsPerPage)
@@ -318,6 +414,43 @@ const hasMoreListings = computed(() => {
 })
 
 // Methods
+const formatCategory = (category) => {
+  return FOOD_CATEGORY_LABELS?.[category] || category || 'General'
+}
+
+const formatExpiryDate = (date) => {
+  if (!date) return ''
+  const expiry = new Date(date)
+  const now = new Date()
+  const diffMs = expiry - now
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
+  const diffDays = Math.floor(diffHours / 24)
+
+  if (diffMs < 0) return 'Expired'
+  if (diffHours < 1) return 'Expires soon'
+  if (diffHours < 24) return `Expires in ${diffHours}h`
+  return `Expires in ${diffDays}d`
+}
+
+const getStatusColor = (status) => {
+  // ListingsView expects lowercase statuses; Map uses various. Normalize.
+  const key = typeof status === 'string' ? status.toLowerCase() : status
+  return LISTING_STATUS_COLORS?.[key] || 'text-gray-600 bg-gray-100'
+}
+
+const getStatusLabel = (status) => {
+  const key = typeof status === 'string' ? status.toLowerCase() : status
+  return LISTING_STATUS_LABELS?.[key] || status
+}
+
+const isExpiringSoon = (expiryDate) => {
+  if (!expiryDate) return false
+  const expiry = new Date(expiryDate)
+  const now = new Date()
+  const diffHours = (expiry - now) / (1000 * 60 * 60)
+  return diffHours <= 6 && diffHours > 0
+}
+
 const initializeMap = async () => {
   try {
     console.log('initializeMap called')
@@ -344,7 +477,7 @@ const initializeMap = async () => {
     console.log('Initializing Google Maps...')
     
     const loader = new Loader({
-      apiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY ,
+      apiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
       version: 'weekly',
       libraries: ['places', 'marker']
     })
@@ -366,17 +499,10 @@ const initializeMap = async () => {
     console.log('Creating map with center:', center)
 
     // Initialize map with additional options to prevent observer errors
-    map.value = new google.maps.Map(mapContainer.value, {
+  map.value = new google.maps.Map(mapContainer.value, {
       center,
       zoom: userLocation.value ? 13 : 10,
       mapId: 'PANTRYSHARE_MAP', // Required for AdvancedMarkerElement
-      styles: [
-        {
-          featureType: 'poi',
-          elementType: 'labels',
-          stylers: [{ visibility: 'off' }]
-        }
-      ],
       mapTypeControl: false,
       streetViewControl: false,
       fullscreenControl: true,
@@ -441,7 +567,15 @@ const addListingMarkers = () => {
     return
   }
 
+  console.log('=== Marker Debug ===')
   console.log('Adding markers for', visibleListings.value.length, 'listings')
+  console.log('Sample listing data:', visibleListings.value[0]) // Debug: show structure
+  console.log('All visible listings:', visibleListings.value.map(l => ({
+    id: l.id, 
+    title: l.title, 
+    status: l.status,
+    coordinates: l.coordinates
+  })))
   
   // Clear existing markers
   markers.value.forEach(marker => {
@@ -453,27 +587,89 @@ const addListingMarkers = () => {
   })
   markers.value = []
 
+  // Track usage counts of identical coordinates to offset overlapping markers
+  const coordUsage = new Map()
+
   // Add markers for each listing with location
   visibleListings.value.forEach(listing => {
-    if (listing.location && listing.location.lat && listing.location.lng) {
+    console.log('Processing listing:', listing.id, 'coordinates:', listing.coordinates) // Debug
+    if (listing.coordinates && listing.coordinates.lat && listing.coordinates.lng) {
       try {
-        const marker = new google.maps.marker.AdvancedMarkerElement({
-          position: {
-            lat: listing.location.lat,
-            lng: listing.location.lng
-          },
-          map: map.value,
-          title: listing.title,
-          content: createCustomMarkerIcon(listing.status)
-        })
+        // Compute offset if we have multiple markers at the same coordinates
+        const baseLat = listing.coordinates.lat
+        const baseLng = listing.coordinates.lng
+        const key = `${baseLat.toFixed(6)},${baseLng.toFixed(6)}`
+        const used = coordUsage.get(key) || 0
+
+        // Offset in meters for overlapping points
+        const toRad = (d) => d * Math.PI / 180
+        const toDeg = (r) => r * 180 / Math.PI
+        const meterToDegLat = (m) => m / 111320
+        const meterToDegLng = (m, atLat) => m / (111320 * Math.cos(toRad(atLat)))
+
+        let posLat = baseLat
+        let posLng = baseLng
+        if (used > 0) {
+          const angleDeg = (used - 1) * 45 // 8 slots around the point
+          const radiusM = 12 // roughly ~12 meters offset
+          const dLat = meterToDegLat(radiusM * Math.sin(toRad(angleDeg)))
+          const dLng = meterToDegLng(radiusM * Math.cos(toRad(angleDeg)), baseLat)
+          posLat = baseLat + dLat
+          posLng = baseLng + dLng
+        }
+        coordUsage.set(key, used + 1)
+
+        console.log(`Creating marker for ${listing.title} at ${posLat}, ${posLng} (base: ${baseLat}, ${baseLng}, dupIndex: ${used})`)
+        
+        let marker
+        if (USE_ADVANCED_MARKERS) {
+          // Try to use AdvancedMarkerElement; fallback to regular marker on error
+          try {
+            marker = new google.maps.marker.AdvancedMarkerElement({
+              position: { lat: posLat, lng: posLng },
+              map: map.value,
+              title: listing.title,
+              content: createCustomMarkerIcon(listing),
+              gmpClickable: true,
+              zIndex: 100
+            })
+            console.log('AdvancedMarkerElement created successfully')
+          } catch (advancedError) {
+            console.warn('AdvancedMarkerElement failed, using regular Marker:', advancedError)
+          }
+        }
+
+        if (!marker) {
+          // Reliable standard Marker
+          marker = new google.maps.Marker({
+            position: { lat: posLat, lng: posLng },
+            map: map.value,
+            title: listing.title,
+            zIndex: 100,
+            icon: {
+              url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
+                <svg width="30" height="30" viewBox="0 0 30 30" xmlns="http://www.w3.org/2000/svg">
+                  <circle cx="15" cy="15" r="12" fill="${((listing.status || '').toLowerCase() === 'available') ? '#00ff88' : '#666'}" stroke="white" stroke-width="3"/>
+                  <circle cx="15" cy="15" r="6" fill="white"/>
+                </svg>
+              `),
+              scaledSize: new google.maps.Size(30, 30),
+              anchor: new google.maps.Point(15, 15)
+            }
+          })
+          console.log('Regular Marker created successfully')
+        }
+
+        // Store computed position for InfoWindow fallback
+        try { marker._psPosition = { lat: posLat, lng: posLng } } catch (_) { /* noop */ }
 
         // Create info window
         const infoWindow = new google.maps.InfoWindow({
           content: createInfoWindowContent(listing)
         })
 
-        // Add click listener
-        marker.addListener('click', () => {
+        // Add click listeners (AdvancedMarkerElement uses 'gmp-click')
+        const openInfo = () => {
           // Close all other info windows
           markers.value.forEach(m => {
             if (m.infoWindow) {
@@ -484,9 +680,27 @@ const addListingMarkers = () => {
               }
             }
           })
-          
-          infoWindow.open(map.value, marker)
-        })
+          // Prefer modern API signature
+          try {
+            infoWindow.open({ map: map.value, anchor: marker })
+          } catch (e) {
+            // Fallback: explicitly set position then open
+            try {
+              const p = marker._psPosition || (listing.coordinates?.lat && listing.coordinates?.lng ? { lat: listing.coordinates.lat, lng: listing.coordinates.lng } : null)
+              if (p) infoWindow.setPosition(p)
+              infoWindow.open(map.value)
+            } catch (e2) {
+              console.warn('Failed to open info window:', e2)
+            }
+          }
+        }
+
+        // Regular Marker
+        if (typeof marker.addListener === 'function') {
+          try { marker.addListener('click', openInfo) } catch (e) { /* noop */ }
+          // AdvancedMarkerElement
+          try { marker.addListener('gmp-click', openInfo) } catch (e) { /* noop */ }
+        }
 
         marker.infoWindow = infoWindow
         markers.value.push(marker)
@@ -497,36 +711,98 @@ const addListingMarkers = () => {
   })
   
   console.log('Added', markers.value.length, 'markers to map')
+
+  // Auto-fit map to markers (and user location if available)
+  try {
+    if (markers.value.length > 0 && map.value) {
+      const bounds = new google.maps.LatLngBounds()
+      markers.value.forEach(m => {
+        let pos = null
+        try {
+          // AdvancedMarkerElement uses .position, regular Marker uses getPosition()
+          pos = m.position || (typeof m.getPosition === 'function' ? m.getPosition() : null)
+        } catch (_) { /* noop */ }
+        if (pos) bounds.extend(pos)
+      })
+      if (userLocation.value) {
+        bounds.extend(new google.maps.LatLng(userLocation.value.latitude, userLocation.value.longitude))
+      }
+      // If bounds are valid and non-empty, fit the map
+      if (!bounds.isEmpty()) {
+        // If only one marker, set a reasonable zoom
+        const ne = bounds.getNorthEast()
+        const sw = bounds.getSouthWest()
+        const singlePoint = ne.equals(sw)
+        if (singlePoint) {
+          map.value.setCenter(ne)
+          map.value.setZoom(15)
+        } else {
+          map.value.fitBounds(bounds)
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('Failed to fit bounds:', e)
+  }
 }
 
-const createCustomMarkerIcon = (status) => {
-  // Create SVG marker based on status
-  const color = status === 'Available' ? '#00ff88' : '#666'
-  
-  // Create a DOM element for the marker
+const createCustomMarkerIcon = (listing) => {
+  // Normalize status for color
+  const status = typeof listing?.status === 'string' ? listing.status.toLowerCase() : listing?.status
+  const color = status === 'available' ? '#00ff88' : '#666'
+
+  // Prepare a small, safe label (truncate + escape)
+  const raw = String(listing?.title || '').trim() || 'Listing'
+  const truncated = raw.length > 18 ? raw.slice(0, 17) + '…' : raw
+  const safe = truncated.replace(/[&<>"']/g, (ch) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  })[ch])
+
+  // Create a DOM element for the marker with a label under it
   const markerElement = document.createElement('div')
   markerElement.innerHTML = `
-    <div style="
-      width: 40px; 
-      height: 40px; 
-      background: ${color}; 
-      border: 3px solid white; 
-      border-radius: 50%; 
-      display: flex; 
-      align-items: center; 
-      justify-content: center;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-      position: relative;
-    ">
+    <div style="position: relative; display: inline-block;">
       <div style="
-        width: 16px; 
-        height: 16px; 
-        background: white; 
-        border-radius: 50%;
-      "></div>
+        width: 40px; 
+        height: 40px; 
+        background: ${color}; 
+        border: 3px solid white; 
+        border-radius: 50%; 
+        display: flex; 
+        align-items: center; 
+        justify-content: center;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+      ">
+        <div style="
+          width: 16px; 
+          height: 16px; 
+          background: white; 
+          border-radius: 50%;
+        "></div>
+      </div>
+      <div style="
+        position: absolute;
+        top: 44px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: white;
+        color: #1a1a1a;
+        border: 1px solid rgba(0,0,0,0.08);
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        padding: 2px 8px;
+        font-size: 11px;
+        font-weight: 600;
+        white-space: nowrap;
+        pointer-events: none;
+      ">${safe}</div>
     </div>
   `
-  
+
   return markerElement.firstElementChild
 }
 
@@ -715,6 +991,18 @@ const loadMore = () => {
   page.value++
 }
 
+const viewDetails = (listing) => {
+  // Navigate to listing detail page
+  router.push(`/listings/${listing.id}`)
+}
+
+const applyFilters = () => {
+  // Filters are reactive, so markers will update automatically
+  if (mapLoaded.value) {
+    addListingMarkers()
+  }
+}
+
 const requestLocation = () => {
   if ('geolocation' in navigator) {
     navigator.geolocation.getCurrentPosition(
@@ -760,13 +1048,13 @@ const calculateDistance = (lat1, lon1, lat2, lon2) => {
 }
 
 const getDistance = (listing) => {
-  if (!userLocation.value || !listing.location) return null
+  if (!userLocation.value || !listing.coordinates) return null
   
   const distance = calculateDistance(
     userLocation.value.latitude,
     userLocation.value.longitude,
-    listing.location.lat,
-    listing.location.lng
+    listing.coordinates.lat,
+    listing.coordinates.lng
   )
   
   return Math.round(distance * 10) / 10 // Round to 1 decimal place
@@ -775,10 +1063,19 @@ const getDistance = (listing) => {
 // Watchers
 // Watch for filter changes to update markers
 watch(filters, () => {
+  console.log('Filters changed:', filters)
   if (mapLoaded.value) {
     addListingMarkers()
   }
 }, { deep: true })
+
+// Watch for visible listings changes to update markers
+watch(visibleListings, () => {
+  console.log('Visible listings changed, updating markers')
+  if (mapLoaded.value) {
+    addListingMarkers()
+  }
+})
 
 // Watch for user location changes to add/update user marker
 watch(userLocation, (newLocation) => {
@@ -823,11 +1120,13 @@ onMounted(async () => {
 }
 
 .map-container {
- 
+  margin-top: 60px;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   line-height: 1.6;
   color: #1a1a1a;
-  height: 100vh;
+  /* Use viewport units to avoid mobile URL bar issues */
+  height: 100vh; /* fallback */
+  height: 100svh; /* small viewport height on mobile */
   display: flex;
   flex-direction: column;
 }
@@ -1284,7 +1583,7 @@ onMounted(async () => {
 .list-view {
   flex: 1;
   background: #f8f9fa;
-  padding: 40px 0;
+  padding: 24px 0 40px;
   overflow-y: auto;
 }
 
@@ -1386,6 +1685,23 @@ onMounted(async () => {
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   gap: 24px;
   margin-bottom: 40px;
+}
+
+/* Line clamp utilities for titles/descriptions */
+.line-clamp-1 {
+  display: -webkit-box;
+  line-clamp: 1;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.line-clamp-2 {
+  display: -webkit-box;
+  line-clamp: 2;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 /* Load More Section */
@@ -1618,18 +1934,24 @@ onMounted(async () => {
   }
   
   .header-controls {
-    justify-content: center;
-    flex-wrap: wrap;
+  justify-content: center;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
   }
   
   .filter-group {
-    flex: 1;
-    justify-content: center;
+    flex-direction: column;
+    width: 100%;
   }
   
   .modern-select {
-    flex: 1;
-    min-width: auto;
+    width: 100%;
+    min-width: 0;
+  }
+  
+  .location-btn {
+    width: 100%;
   }
   
   .listings-grid {
@@ -1642,7 +1964,9 @@ onMounted(async () => {
   }
   
   .floating-action-btn {
-    display: flex;
+  display: flex;
+  bottom: calc(24px + env(safe-area-inset-bottom));
+  right: calc(24px + env(safe-area-inset-right));
   }
   
   .add-listing-btn {
@@ -1693,6 +2017,11 @@ onMounted(async () => {
   .notice-actions {
     flex-direction: column;
     gap: 8px;
+  }
+  
+  /* Smaller map min-height on very small screens */
+  .google-map {
+    min-height: 360px;
   }
 }
 

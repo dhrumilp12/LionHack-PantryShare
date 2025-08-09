@@ -6,21 +6,26 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Load .env file from the correct path
-const envPath = path.join(__dirname, '..', '.env');
-const result = dotenv.config({ path: envPath });
+// Load .env file from the correct path (only in development)
+if (process.env.NODE_ENV !== 'production') {
+  const envPath = path.join(__dirname, '..', '.env');
+  const result = dotenv.config({ path: envPath });
 
-if (result.error) {
-  console.error('Error loading .env file:', result.error);
-  process.exit(1);
+  if (result.error) {
+    console.error('Error loading .env file:', result.error);
+    console.warn('⚠️ Continuing without .env file - assuming environment variables are set');
+  } else {
+    console.log('✅ Environment variables loaded from .env file');
+  }
 } else {
-  console.log('✅ Environment variables loaded successfully');
-  console.log('🔍 Key env vars:', {
-    NODE_ENV: process.env.NODE_ENV,
-    PORT: process.env.PORT,
-    FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID ? 'LOADED' : 'MISSING'
-  });
+  console.log('✅ Production mode - using environment variables from platform');
 }
+
+console.log('🔍 Key env vars:', {
+  NODE_ENV: process.env.NODE_ENV,
+  PORT: process.env.PORT,
+  FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID ? 'LOADED' : 'MISSING'
+});
 
 // Validate critical environment variables before proceeding
 const requiredEnvVars = ['FIREBASE_PROJECT_ID', 'FIREBASE_PRIVATE_KEY', 'FIREBASE_CLIENT_EMAIL'];

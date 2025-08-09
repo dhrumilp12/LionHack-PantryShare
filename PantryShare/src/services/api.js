@@ -26,13 +26,19 @@ class ApiClient {
    * Setup request and response interceptors
    */
   setupInterceptors() {
-    // Request interceptor - add auth token
+    // Request interceptor - add auth token and handle FormData
     this.client.interceptors.request.use(
       (config) => {
         const token = localStorage.getItem('ps_token')
         if (token) {
           config.headers.Authorization = `Bearer ${token}`
         }
+        
+        // Handle FormData - let browser set Content-Type with boundary
+        if (config.data instanceof FormData) {
+          delete config.headers['Content-Type']
+        }
+        
         return config
       },
       (error) => {
@@ -118,13 +124,21 @@ class ApiClient {
   /**
    * Upload file with progress support
    */
-  async uploadFile(endpoint, file, onProgress = null) {
-    const formData = new FormData()
-    formData.append('file', file)
+  async uploadFile(endpoint, formDataOrFile, onProgress = null) {
+    let formData
+    
+    // Handle both FormData and File inputs
+    if (formDataOrFile instanceof FormData) {
+      formData = formDataOrFile
+    } else {
+      formData = new FormData()
+      formData.append('image', formDataOrFile)
+    }
 
     const config = {
       headers: {
-        'Content-Type': 'multipart/form-data',
+        // Don't set Content-Type manually for FormData
+        // Let the browser set it with the boundary
       },
     }
 
